@@ -160,13 +160,32 @@ class FilterLifeConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(step_id="device", data_schema=schema, errors=errors)
 
+    # Attributes that enumerate the values an entity can take as its own state
+    # (not every mode attribute qualifies: e.g. climate preset_modes are not
+    # the entity state, so they are intentionally excluded).
+    _STATE_ENUM_ATTRIBUTES = (
+        "options",  # select / input_select
+        "hvac_modes",  # climate
+        "operation_list",  # water_heater
+        "operation_modes",  # water_heater (some integrations)
+        "modes",  # humidifier-style integrations that map modes to state
+    )
+
     def _state_suggestions(self, entity_id: str) -> list[str]:
-        """Build target-state suggestions: current state first, then known
+        """Build target-state suggestions: current state first, then the
+        entity's own declared states (from its attributes), then known
         states for the entity's domain. Custom values remain allowed."""
         suggestions: list[str] = []
         state = self.hass.states.get(entity_id)
-        if state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-            suggestions.append(state.state)
+        if state is not None:
+            if state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                suggestions.append(state.state)
+            # Entity-declared states (e.g. select options, water_heater
+            # operation_list) take precedence over generic domain guesses.
+            for attr in self._STATE_ENUM_ATTRIBUTES:
+                values = state.attributes.get(attr)
+                if isinstance(values, (list, tuple)):
+                    suggestions.extend(str(v) for v in values)
         domain = entity_id.split(".")[0]
         suggestions.extend(
             DOMAIN_STATE_SUGGESTIONS.get(domain, _GENERIC_STATE_SUGGESTIONS)
