@@ -10,17 +10,24 @@
       },
       "device": {
         "title": "用水设备",
-        "description": "积分源实体的状态变化驱动用量累积。修正系数反推：上次滤芯实际使用 X 小时而积分显示 Y，则系数 = X / Y。首个滤芯建议保持 1.0。",
         "data": {
           "name": "名称",
           "source_entity": "积分源实体",
+          "source_type": "积分类型"
+        },
+        "data_description": {
+          "source_entity": "已被其他设备占用的实体不能重复选择。"
+        }
+      },
+      "device_state": {
+        "title": "目标状态与修正",
+        "description": "下拉框会给出该实体的当前状态及同类设备的常见状态，也可手动输入自定义状态。修正系数反推：上次滤芯实际使用 X 小时而积分显示 Y，则系数 = X / Y。首个滤芯建议保持 1.0。",
+        "data": {
           "target_state": "目标状态（如 heating / running）",
-          "source_type": "积分类型",
           "coefficient": "修正系数",
           "debounce": "去抖时间（仅次数型生效）"
         },
         "data_description": {
-          "source_entity": "已被其他设备占用的实体不能重复选择。",
           "debounce": "仅次数型生效：目标状态需持续该时长才计为一次。"
         }
       },
@@ -65,6 +72,7 @@
     },
     "error": {
       "entity_in_use": "该实体已被其他设备使用",
+      "target_state_empty": "目标状态不能为空",
       "no_downstream": "请至少选择一个下游设备级条目",
       "mixed_source_types": "总前置聚合要求所有下游设备使用相同的积分类型（时间型或次数型）"
     },

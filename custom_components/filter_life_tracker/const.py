@@ -12,6 +12,24 @@ ENTRY_TYPE_TOTAL = "total"
 SOURCE_TYPE_DURATION = "duration"
 SOURCE_TYPE_COUNT = "count"
 
+# Known state suggestions per entity domain, used to prefill the target-state
+# selector in the config flow. Custom/vendor states remain possible via
+# custom_value=True on the selector.
+DOMAIN_STATE_SUGGESTIONS = {
+    "water_heater": ["off", "eco", "electric", "performance", "high_demand", "heat_pump", "gas"],
+    "climate": ["off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"],
+    "vacuum": ["cleaning", "docked", "idle", "paused", "returning", "error"],
+    "fan": ["on", "off"],
+    "switch": ["on", "off"],
+    "binary_sensor": ["on", "off"],
+    "humidifier": ["on", "off"],
+    "valve": ["open", "closed", "opening", "closing"],
+    "cover": ["open", "closed", "opening", "closing"],
+    "washer": ["off", "idle", "running", "paused"],
+    "dishwasher": ["off", "idle", "running", "paused"],
+}
+_GENERIC_STATE_SUGGESTIONS = ["on", "off", "idle", "running", "heating", "active"]
+
 # Config keys
 CONF_ENTRY_TYPE = "entry_type"
 CONF_SOURCE_ENTITY = "source_entity"

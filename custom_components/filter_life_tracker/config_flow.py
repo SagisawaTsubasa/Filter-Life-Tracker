@@ -13,7 +13,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -28,6 +28,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    _GENERIC_STATE_SUGGESTIONS,
     CONF_CASCADE_FACTOR,
     CONF_COEFFICIENT,
     CONF_DEBOUNCE,
@@ -47,6 +48,7 @@ from .const import (
     DEFAULT_DEBOUNCE,
     DEFAULT_WARN_THRESHOLD,
     DOMAIN,
+    DOMAIN_STATE_SUGGESTIONS,
     ENTRY_TYPE_DEVICE,
     ENTRY_TYPE_TOTAL,
     MAX_COEFFICIENT,
@@ -134,25 +136,64 @@ class FilterLifeConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_device(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Device entry: name, source entity, target state, source type, coefficient."""
+        """Device entry step 1: name, source entity, source type."""
         errors: dict[str, str] = {}
         if user_input is not None:
             if self._entity_in_use(user_input[CONF_SOURCE_ENTITY]):
                 errors[CONF_SOURCE_ENTITY] = "entity_in_use"
             else:
                 self._data = dict(user_input)
-                return await self.async_step_filter1()
+                return await self.async_step_device_state()
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): TextSelector(),
                 vol.Required(CONF_SOURCE_ENTITY): EntitySelector(),
-                vol.Required(CONF_TARGET_STATE): TextSelector(),
                 vol.Required(CONF_SOURCE_TYPE, default=SOURCE_TYPE_DURATION): SelectSelector(
                     SelectSelectorConfig(
                         options=[SOURCE_TYPE_DURATION, SOURCE_TYPE_COUNT],
                         mode=SelectSelectorMode.DROPDOWN,
                         translation_key="source_type",
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(step_id="device", data_schema=schema, errors=errors)
+
+    def _state_suggestions(self, entity_id: str) -> list[str]:
+        """Build target-state suggestions: current state first, then known
+        states for the entity's domain. Custom values remain allowed."""
+        suggestions: list[str] = []
+        state = self.hass.states.get(entity_id)
+        if state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            suggestions.append(state.state)
+        domain = entity_id.split(".")[0]
+        suggestions.extend(
+            DOMAIN_STATE_SUGGESTIONS.get(domain, _GENERIC_STATE_SUGGESTIONS)
+        )
+        # Deduplicate, preserving order.
+        return list(dict.fromkeys(suggestions))
+
+    async def async_step_device_state(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Device entry step 2: target state (auto-suggested), coefficient, debounce."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if not str(user_input[CONF_TARGET_STATE]).strip():
+                errors[CONF_TARGET_STATE] = "target_state_empty"
+            else:
+                self._data.update(user_input)
+                return await self.async_step_filter1()
+
+        suggestions = self._state_suggestions(self._data[CONF_SOURCE_ENTITY])
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_TARGET_STATE): SelectSelector(
+                    SelectSelectorConfig(
+                        options=suggestions,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
                     )
                 ),
                 vol.Required(CONF_COEFFICIENT, default=DEFAULT_COEFFICIENT): _coefficient_selector(),
@@ -164,7 +205,7 @@ class FilterLifeConfigFlow(ConfigFlow, domain=DOMAIN):
                 ),
             }
         )
-        return self.async_show_form(step_id="device", data_schema=schema, errors=errors)
+        return self.async_show_form(step_id="device_state", data_schema=schema, errors=errors)
 
     async def async_step_filter1(
         self, user_input: dict[str, Any] | None = None
@@ -307,10 +348,19 @@ class FilterLifeOptionsFlow(OptionsFlow):
 
         schema: dict[Any, Any] = {}
         if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_DEVICE:
-            schema[vol.Required(
-                CONF_TARGET_STATE,
-                default=entry.options.get(CONF_TARGET_STATE, entry.data[CONF_TARGET_STATE]),
-            )] = TextSelector()
+            suggestions = FilterLifeConfigFlow._state_suggestions(
+                self, entry.data[CONF_SOURCE_ENTITY]
+            )
+            current_target = entry.options.get(CONF_TARGET_STATE, entry.data[CONF_TARGET_STATE])
+            if current_target not in suggestions:
+                suggestions.insert(0, current_target)
+            schema[vol.Required(CONF_TARGET_STATE, default=current_target)] = SelectSelector(
+                SelectSelectorConfig(
+                    options=suggestions,
+                    mode=SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            )
             schema[vol.Required(
                 CONF_COEFFICIENT,
                 default=float(entry.options.get(CONF_COEFFICIENT, entry.data[CONF_COEFFICIENT])),

@@ -10,17 +10,24 @@
       },
       "device": {
         "title": "Water-using device",
-        "description": "The source entity's state changes drive usage accumulation. Coefficient hint: if the last filter actually lasted X hours while the tracker showed Y, set coefficient = X / Y. Keep 1.0 for the first filter.",
         "data": {
           "name": "Name",
           "source_entity": "Source entity",
+          "source_type": "Tracking type"
+        },
+        "data_description": {
+          "source_entity": "An entity already used by another device entry cannot be selected."
+        }
+      },
+      "device_state": {
+        "title": "Target state & correction",
+        "description": "The dropdown suggests the entity's current state plus known states for its type; you can also type a custom state. Coefficient hint: if the last filter actually lasted X hours while the tracker showed Y, set coefficient = X / Y. Keep 1.0 for the first filter.",
+        "data": {
           "target_state": "Target state (e.g. heating / running)",
-          "source_type": "Tracking type",
           "coefficient": "Correction coefficient",
           "debounce": "Debounce time (count type only)"
         },
         "data_description": {
-          "source_entity": "An entity already used by another device entry cannot be selected.",
           "debounce": "Only applies to count type: the target state must persist this long to count once."
         }
       },
@@ -65,6 +72,7 @@
     },
     "error": {
       "entity_in_use": "This entity is already used by another device entry",
+      "target_state_empty": "Target state cannot be empty",
       "no_downstream": "Select at least one downstream device entry",
       "mixed_source_types": "All downstream devices must use the same tracking type (duration or count)"
     },
