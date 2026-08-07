@@ -1,0 +1,12 @@
+{
+  "domain": "filter_life_tracker",
+  "name": "Filter Life Tracker",
+  "codeowners": ["@SagisawaTsubasa"],
+  "config_flow": true,
+  "documentation": "https://github.com/SagisawaTsubasa/Filter-Life-Tracker",
+  "integration_type": "device",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/SagisawaTsubasa/Filter-Life-Tracker/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

@@ -1,0 +1,124 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Filter Life Tracker",
+        "menu_options": {
+          "device": "Add a water-using device",
+          "total": "Add a whole-house pre-filter (aggregation)"
+        }
+      },
+      "device": {
+        "title": "Water-using device",
+        "description": "The source entity's state changes drive usage accumulation. Coefficient hint: if the last filter actually lasted X hours while the tracker showed Y, set coefficient = X / Y. Keep 1.0 for the first filter.",
+        "data": {
+          "name": "Name",
+          "source_entity": "Source entity",
+          "target_state": "Target state (e.g. heating / running)",
+          "source_type": "Tracking type",
+          "coefficient": "Correction coefficient",
+          "debounce": "Debounce time (count type only)"
+        },
+        "data_description": {
+          "source_entity": "An entity already used by another device entry cannot be selected.",
+          "debounce": "Only applies to count type: the target state must persist this long to count once."
+        }
+      },
+      "filter1": {
+        "title": "Level 1 filter",
+        "data": {
+          "template": "Filter template",
+          "rated_time_days": "Rated lifetime (days)",
+          "rated_usage": "Rated usage",
+          "warn_threshold": "Warning threshold (%)"
+        }
+      },
+      "filter2": {
+        "title": "Level 2 filter (optional)",
+        "description": "When the level 1 filter's usage track is exhausted, level 2 accumulates usage at the cascade factor rate.",
+        "data": {
+          "enable_level2": "Enable level 2 filter",
+          "template": "Filter template",
+          "rated_time_days": "Rated lifetime (days)",
+          "rated_usage": "Rated usage",
+          "warn_threshold": "Warning threshold (%)",
+          "cascade_factor": "Cascade factor"
+        }
+      },
+      "total": {
+        "title": "Whole-house pre-filter",
+        "description": "The pre-filter only counts usage produced after binding; downstream history is not included. All downstream entries must use the same tracking type.",
+        "data": {
+          "name": "Name",
+          "downstream_entries": "Downstream device entries"
+        }
+      },
+      "total_filter": {
+        "title": "Pre-filter cartridge",
+        "data": {
+          "template": "Filter template",
+          "rated_time_days": "Rated lifetime (days)",
+          "rated_usage": "Rated usage",
+          "warn_threshold": "Warning threshold (%)"
+        }
+      }
+    },
+    "error": {
+      "entity_in_use": "This entity is already used by another device entry",
+      "no_downstream": "Select at least one downstream device entry",
+      "mixed_source_types": "All downstream devices must use the same tracking type (duration or count)"
+    },
+    "abort": {
+      "no_device_entries": "Configure at least one device entry before adding a pre-filter"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Filter Life Tracker options",
+        "description": "Source entity, tracking type and downstream bindings cannot be changed; delete and recreate the entry instead.",
+        "data": {
+          "target_state": "Target state",
+          "coefficient": "Correction coefficient",
+          "debounce": "Debounce time (count type only)",
+          "filter_1_rated_time_days": "Level 1 rated lifetime (days)",
+          "filter_1_rated_usage": "Level 1 rated usage",
+          "filter_1_warn_threshold": "Level 1 warning threshold (%)",
+          "filter_2_rated_time_days": "Level 2 rated lifetime (days)",
+          "filter_2_rated_usage": "Level 2 rated usage",
+          "filter_2_warn_threshold": "Level 2 warning threshold (%)",
+          "filter_2_cascade_factor": "Level 2 cascade factor"
+        }
+      }
+    }
+  },
+  "selector": {
+    "source_type": {
+      "options": {
+        "duration": "Duration (e.g. water heater)",
+        "count": "Count (e.g. washing machine)"
+      }
+    },
+    "template": {
+      "options": {
+        "pp_cotton": "PP cotton",
+        "activated_carbon": "Activated carbon",
+        "custom": "Custom"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "life": { "name": "Filter {level} life" },
+      "life_time": { "name": "Filter {level} time remaining" },
+      "life_usage": { "name": "Filter {level} usage remaining" }
+    },
+    "binary_sensor": {
+      "warn": { "name": "Filter {level} warning" },
+      "expired": { "name": "Filter {level} expired" }
+    },
+    "button": {
+      "reset": { "name": "Reset filter {level}" }
+    }
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "滤芯寿命管理",
+        "menu_options": {
+          "device": "添加用水设备",
+          "total": "添加全屋总前置（聚合）"
+        }
+      },
+      "device": {
+        "title": "用水设备",
+        "description": "积分源实体的状态变化驱动用量累积。修正系数反推：上次滤芯实际使用 X 小时而积分显示 Y，则系数 = X / Y。首个滤芯建议保持 1.0。",
+        "data": {
+          "name": "名称",
+          "source_entity": "积分源实体",
+          "target_state": "目标状态（如 heating / running）",
+          "source_type": "积分类型",
+          "coefficient": "修正系数",
+          "debounce": "去抖时间（仅次数型生效）"
+        },
+        "data_description": {
+          "source_entity": "已被其他设备占用的实体不能重复选择。",
+          "debounce": "仅次数型生效：目标状态需持续该时长才计为一次。"
+        }
+      },
+      "filter1": {
+        "title": "1 级滤芯",
+        "data": {
+          "template": "滤芯模板",
+          "rated_time_days": "额定寿命（天）",
+          "rated_usage": "额定用量",
+          "warn_threshold": "预警阈值（%）"
+        }
+      },
+      "filter2": {
+        "title": "2 级滤芯（可选）",
+        "description": "当 1 级滤芯用量耗尽后，2 级用量积分将按级联系数加速累积。",
+        "data": {
+          "enable_level2": "启用 2 级滤芯",
+          "template": "滤芯模板",
+          "rated_time_days": "额定寿命（天）",
+          "rated_usage": "额定用量",
+          "warn_threshold": "预警阈值（%）",
+          "cascade_factor": "级联系数"
+        }
+      },
+      "total": {
+        "title": "全屋总前置",
+        "description": "总前置只统计绑定之后新产生的用量，下游已有历史积分不计入。所有下游设备必须使用相同的积分类型。",
+        "data": {
+          "name": "名称",
+          "downstream_entries": "下游设备级条目"
+        }
+      },
+      "total_filter": {
+        "title": "总前置滤芯",
+        "data": {
+          "template": "滤芯模板",
+          "rated_time_days": "额定寿命（天）",
+          "rated_usage": "额定用量",
+          "warn_threshold": "预警阈值（%）"
+        }
+      }
+    },
+    "error": {
+      "entity_in_use": "该实体已被其他设备使用",
+      "no_downstream": "请至少选择一个下游设备级条目",
+      "mixed_source_types": "总前置聚合要求所有下游设备使用相同的积分类型（时间型或次数型）"
+    },
+    "abort": {
+      "no_device_entries": "请先配置至少一个设备级条目，再添加总前置"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "滤芯寿命管理选项",
+        "description": "积分源实体、积分类型与下游绑定关系不可修改，如需变更请删除后重建条目。",
+        "data": {
+          "target_state": "目标状态",
+          "coefficient": "修正系数",
+          "debounce": "去抖时间（仅次数型生效）",
+          "filter_1_rated_time_days": "1 级额定寿命（天）",
+          "filter_1_rated_usage": "1 级额定用量",
+          "filter_1_warn_threshold": "1 级预警阈值（%）",
+          "filter_2_rated_time_days": "2 级额定寿命（天）",
+          "filter_2_rated_usage": "2 级额定用量",
+          "filter_2_warn_threshold": "2 级预警阈值（%）",
+          "filter_2_cascade_factor": "2 级级联系数"
+        }
+      }
+    }
+  },
+  "selector": {
+    "source_type": {
+      "options": {
+        "duration": "时间型（如热水器）",
+        "count": "次数型（如洗衣机）"
+      }
+    },
+    "template": {
+      "options": {
+        "pp_cotton": "PP 棉",
+        "activated_carbon": "活性炭",
+        "custom": "自定义"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "life": { "name": "{level} 级滤芯寿命" },
+      "life_time": { "name": "{level} 级时间剩余" },
+      "life_usage": { "name": "{level} 级用量剩余" }
+    },
+    "binary_sensor": {
+      "warn": { "name": "{level} 级滤芯预警" },
+      "expired": { "name": "{level} 级滤芯超期" }
+    },
+    "button": {
+      "reset": { "name": "重置 {level} 级滤芯" }
+    }
+  }
+}
