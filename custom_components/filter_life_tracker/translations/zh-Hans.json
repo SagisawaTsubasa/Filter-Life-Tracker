@@ -31,10 +31,13 @@
           "debounce": "仅次数型生效：目标状态需持续该时长才计为一次。"
         }
       },
+      "filter_template": {
+        "title": "滤芯模板",
+        "description": "模板仅用于预填下一页的默认值；所有数值仍可修改。"
+      },
       "filter1": {
         "title": "1 级滤芯",
         "data": {
-          "template": "滤芯模板",
           "rated_time_days": "额定寿命（天）",
           "rated_usage": "额定用量",
           "warn_threshold": "预警阈值（%）"
@@ -45,7 +48,6 @@
         "description": "当 1 级滤芯用量耗尽后，2 级用量积分将按级联系数加速累积。",
         "data": {
           "enable_level2": "启用 2 级滤芯",
-          "template": "滤芯模板",
           "rated_time_days": "额定寿命（天）",
           "rated_usage": "额定用量",
           "warn_threshold": "预警阈值（%）",
@@ -63,7 +65,6 @@
       "total_filter": {
         "title": "总前置滤芯",
         "data": {
-          "template": "滤芯模板",
           "rated_time_days": "额定寿命（天）",
           "rated_usage": "额定用量",
           "warn_threshold": "预警阈值（%）"
@@ -117,16 +118,28 @@
   },
   "entity": {
     "sensor": {
-      "life": { "name": "{level} 级滤芯寿命" },
-      "life_time": { "name": "{level} 级时间剩余" },
-      "life_usage": { "name": "{level} 级用量剩余" }
+      "life": {
+        "name": "{level} 级滤芯寿命"
+      },
+      "life_time": {
+        "name": "{level} 级时间剩余"
+      },
+      "life_usage": {
+        "name": "{level} 级用量剩余"
+      }
     },
     "binary_sensor": {
-      "warn": { "name": "{level} 级滤芯预警" },
-      "expired": { "name": "{level} 级滤芯超期" }
+      "warn": {
+        "name": "{level} 级滤芯预警"
+      },
+      "expired": {
+        "name": "{level} 级滤芯超期"
+      }
     },
     "button": {
-      "reset": { "name": "重置 {level} 级滤芯" }
+      "reset": {
+        "name": "重置 {level} 级滤芯"
+      }
     }
   }
 }

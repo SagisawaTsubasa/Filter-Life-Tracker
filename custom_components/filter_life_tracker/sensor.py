@@ -32,6 +32,7 @@ class FilterLifeBaseSensor(SensorEntity):
     """Base sensor bound to a runtime."""
 
     _attr_has_entity_name = True
+    _attr_should_poll = False  # values are dispatcher-pushed, polling is a no-op
     _attr_native_unit_of_measurement = "%"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:percent"

@@ -90,6 +90,10 @@ DEFAULT_CASCADE_FACTOR = 1.5
 STORAGE_KEY = f"{DOMAIN}.storage"
 STORAGE_VERSION = 1
 CONFIG_ENTRY_VERSION = 1
+CONFIG_ENTRY_MINOR_VERSION = 1
+
+# Events
+EVENT_FILTER_RESET = f"{DOMAIN}_filter_reset"
 
 # Intervals (ADR-007: batched flush)
 FLUSH_INTERVAL = timedelta(minutes=10)

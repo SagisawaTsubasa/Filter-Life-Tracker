@@ -34,6 +34,7 @@ class FilterLifeBinarySensor(BinarySensorEntity):
     """Warning / expired binary sensor for one filter level."""
 
     _attr_has_entity_name = True
+    _attr_should_poll = False  # values are dispatcher-pushed, polling is a no-op
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
     def __init__(self, runtime: FilterRuntime, level: int, key: str) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from homeassistant.config_entries import ConfigEntry
@@ -9,7 +10,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONFIG_ENTRY_VERSION, DOMAIN, FLUSH_INTERVAL
+from .const import CONFIG_ENTRY_VERSION, CONFIG_ENTRY_MINOR_VERSION, DOMAIN, FLUSH_INTERVAL
 from .engine import FilterRuntime
 from .storage import FilterLifeStore
 
@@ -19,16 +20,50 @@ PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
 
 
 async def _async_get_store(hass: HomeAssistant) -> FilterLifeStore:
-    """Return the shared store, loading and scheduling flushes once."""
+    """Return the shared store, loading and scheduling flushes once.
+
+    The store instance is placed into hass.data *synchronously* so that
+    parallel entry setups (HA starts entries of one domain concurrently)
+    share a single store; every caller then awaits the same load task.
+    Previously the slot was filled only after ``await store.async_load()``,
+    letting a second entry create its own store and later overwrite the
+    shared storage file with partial data.
+    """
     domain_data = hass.data.setdefault(DOMAIN, {})
-    if "store" not in domain_data:
+    store = domain_data.get("store")
+    if store is None:
         store = FilterLifeStore(hass)
-        await store.async_load()
         domain_data["store"] = store
+        domain_data["store_task"] = hass.async_create_task(store.async_load())
         # ADR-007: batched flush every 10 minutes; forced flush on shutdown.
-        async_track_time_interval(hass, store.async_flush, FLUSH_INTERVAL)
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, store.async_flush)
-    return domain_data["store"]
+        # Handles are kept so they can be cancelled when the last entry unloads.
+        domain_data["flush_unsub"] = async_track_time_interval(
+            hass, store.async_flush, FLUSH_INTERVAL
+        )
+        domain_data["stop_unsub"] = hass.bus.async_listen_once(
+            EVENT_HOMEASSISTANT_STOP, store.async_flush
+        )
+    task: asyncio.Task | None = domain_data.get("store_task")
+    if task is not None:
+        try:
+            await task
+        finally:
+            if domain_data.get("store_task") is task:
+                domain_data.pop("store_task", None)
+    return store
+
+
+def _maybe_release_store(hass: HomeAssistant) -> None:
+    """Cancel the shared flush timer/listener when the last entry unloads."""
+    domain_data = hass.data.get(DOMAIN) or {}
+    if domain_data.get("entries"):
+        return
+    flush_unsub = domain_data.pop("flush_unsub", None)
+    if flush_unsub is not None:
+        flush_unsub()
+    stop_unsub = domain_data.pop("stop_unsub", None)
+    if stop_unsub is not None:
+        stop_unsub()
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -58,10 +93,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        runtime: FilterRuntime = hass.data[DOMAIN]["entries"].pop(entry.entry_id)
-        runtime.async_teardown()
+        runtime = hass.data[DOMAIN].get("entries", {}).pop(entry.entry_id, None)
+        if runtime is not None:
+            runtime.async_teardown()
         store: FilterLifeStore = hass.data[DOMAIN]["store"]
         await store.async_flush()
+        _maybe_release_store(hass)
     return unload_ok
 
 
@@ -77,8 +114,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry data schema across versions (doc section 10.4)."""
     if entry.version > CONFIG_ENTRY_VERSION:
         return False
-    if entry.version < CONFIG_ENTRY_VERSION:
-        # Future per-version migrations go here, e.g.:
-        # if entry.version == 1: ... upgrade data ...
-        hass.config_entries.async_update_entry(entry, version=CONFIG_ENTRY_VERSION)
+    if (
+        entry.version != CONFIG_ENTRY_VERSION
+        or entry.minor_version != CONFIG_ENTRY_MINOR_VERSION
+    ):
+        # Future per-version data migrations go here.
+        hass.config_entries.async_update_entry(
+            entry,
+            version=CONFIG_ENTRY_VERSION,
+            minor_version=CONFIG_ENTRY_MINOR_VERSION,
+        )
     return True

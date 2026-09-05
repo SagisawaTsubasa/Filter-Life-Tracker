@@ -10,6 +10,7 @@ One FilterRuntime per config entry. Implements:
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -41,6 +42,7 @@ from .const import (
     DEFAULT_DEBOUNCE,
     DEFAULT_WARN_THRESHOLD,
     ENTRY_TYPE_DEVICE,
+    EVENT_FILTER_RESET,
     SENSOR_REFRESH_INTERVAL,
     SIGNAL_INCREMENT,
     SIGNAL_UPDATED,
@@ -59,8 +61,16 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+_UNSET = object()
+
+
 def _parse_dt(value: str) -> datetime:
-    dt = datetime.fromisoformat(value)
+    try:
+        dt = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        # Corrupted storage must not crash every refresh; treat as "just now".
+        _LOGGER.warning("Invalid install date %r — falling back to now", value)
+        return _utcnow()
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt
@@ -90,6 +100,16 @@ class FilterRuntime:
         self._tracking_since: datetime | None = None
         self._debounce_cancel: Callable[[], None] | None = None
         self._unsubs: list[Callable[[], None]] = []
+        # Count sources: suppress the first rising edge when the entity is
+        # already in the target state right after (re)start, so a cycle that
+        # began before a restart is not counted twice.
+        self._suppress_next_rise = False
+        # Notification throttling (see _notify_updated).
+        self._last_signature: tuple | None = None
+        self._last_notify_mono: float = 0.0
+        # Total prefilters: cached downstream source type for legacy entries
+        # that do not store it in entry.data.
+        self._legacy_total_source_type: str | None | object = _UNSET
 
     # ------------------------------------------------------------------
     # Config helpers (options override data)
@@ -121,6 +141,16 @@ class FilterRuntime:
                 self._unsubs.append(
                     async_track_state_change_event(self.hass, source_entity, self._on_count_event)
                 )
+                # Restart recovery for count sources: if the entity is already
+                # in the target state, suppress the first rising edge so the
+                # cycle that started before the restart is not counted twice.
+                state = self.hass.states.get(source_entity)
+                if state is not None and state.state == self._opt(CONF_TARGET_STATE, ""):
+                    self._suppress_next_rise = True
+                    _LOGGER.debug(
+                        "[%s] restart while in target state — next rise suppressed",
+                        self.entry_id,
+                    )
             else:
                 self._unsubs.append(
                     async_track_state_change_event(self.hass, source_entity, self._on_duration_event)
@@ -188,6 +218,12 @@ class FilterRuntime:
             return
         old_state = old.state if old is not None else None
         if old_state != target and new.state == target:
+            if self._suppress_next_rise:
+                # Entity was already in the target state at setup; this event
+                # is the restart echo of that same cycle, not a new one.
+                self._suppress_next_rise = False
+                _LOGGER.debug("[%s] suppressed rising edge after restart", self.entry_id)
+                return
             # Rising edge: start debounce timer.
             self._cancel_debounce()
             debounce = float(self._opt(CONF_DEBOUNCE, DEFAULT_DEBOUNCE))
@@ -228,6 +264,12 @@ class FilterRuntime:
         """Add usage to all filters, applying cascade acceleration for level 2+."""
         if amount <= 0:
             return
+        _LOGGER.debug(
+            "[%s] usage increment %.3f (broadcast=%s)",
+            self.entry_id,
+            amount,
+            broadcast,
+        )
         for level in sorted(self.filters):
             increment = amount
             # Cascade: only triggered by the *usage track* exhaustion of the
@@ -265,18 +307,35 @@ class FilterRuntime:
     def rated_usage(self, level: int) -> float:
         """Return rated usage in internal units (seconds for duration, count otherwise)."""
         rated = float(self._filter_opt(level, CONF_RATED_USAGE, 500.0))
-        if self.entry_type == ENTRY_TYPE_DEVICE and self.entry.data[CONF_SOURCE_TYPE] != SOURCE_TYPE_COUNT:
+        source_type = (
+            self.entry.data[CONF_SOURCE_TYPE]
+            if self.entry_type == ENTRY_TYPE_DEVICE
+            else self._total_source_type()
+        )
+        if source_type != SOURCE_TYPE_COUNT:
             return rated * SECONDS_PER_HOUR  # user configures hours for duration type
-        if self.entry_type != ENTRY_TYPE_DEVICE and self._total_source_type() != SOURCE_TYPE_COUNT:
-            return rated * SECONDS_PER_HOUR
         return rated
 
     def _total_source_type(self) -> str | None:
-        """Return the (validated uniform) source type of downstream entries."""
+        """Return the source type of this entry (device) or its downstream (total).
+
+        New total entries store the validated uniform type in entry.data, so a
+        downstream entry being deleted can no longer flip the unit of the
+        accumulated usage. Older entries fall back to scanning downstream
+        entries (cached after the first lookup).
+        """
+        stored = self.entry.data.get(CONF_SOURCE_TYPE)
+        if stored is not None:
+            return stored
+        if self._legacy_total_source_type is not _UNSET:
+            return self._legacy_total_source_type  # type: ignore[return-value]
+        found: str | None = None
         for other in self.hass.config_entries.async_entries(self.entry.domain):
-            if other.entry_id in self.entry.data[CONF_DOWNSTREAM_ENTRIES]:
-                return other.data.get(CONF_SOURCE_TYPE)
-        return None
+            if other.entry_id in self.entry.data.get(CONF_DOWNSTREAM_ENTRIES, []):
+                found = other.data.get(CONF_SOURCE_TYPE)
+                break
+        self._legacy_total_source_type = found
+        return found
 
     def time_remaining_pct(self, level: int) -> float:
         """Return time-track remaining percentage, clamped to [0, 100]."""
@@ -334,10 +393,50 @@ class FilterRuntime:
         }
         self.store.mark_dirty(self.entry_id)
         await self.store.async_flush()
-        self._notify_updated()
+        # Doc section 14: fire an event so automations can react to resets.
+        self.hass.bus.async_fire(
+            EVENT_FILTER_RESET,
+            {
+                "entry_id": self.entry_id,
+                "entry_type": self.entry_type,
+                "level": level,
+            },
+        )
+        self._notify_updated(force=True)
 
     # ------------------------------------------------------------------
 
+    _NOTIFY_MIN_INTERVAL = 1800.0  # force a refresh at least every 30 min
+
+    def _compute_signature(self) -> tuple:
+        """Values the derived entities display, rounded so float jitter is ignored."""
+        return tuple(
+            (
+                level,
+                round(self.main_pct(level), 3),
+                self.warn_on(level),
+                self.expired_on(level),
+            )
+            for level in sorted(self.filters)
+        )
+
     @callback
-    def _notify_updated(self) -> None:
+    def _notify_updated(self, force: bool = False) -> None:
+        """Notify entities, skipping no-op refreshes.
+
+        The 60 s timer used to dispatch unconditionally, making every entity
+        recompute and rewrite its state each minute even when nothing changed.
+        Dispatch is now skipped while the displayed values are unchanged
+        (with a periodic forced refresh as a safety net).
+        """
+        signature = self._compute_signature()
+        now_mono = time.monotonic()
+        if (
+            not force
+            and signature == self._last_signature
+            and (now_mono - self._last_notify_mono) < self._NOTIFY_MIN_INTERVAL
+        ):
+            return
+        self._last_signature = signature
+        self._last_notify_mono = now_mono
         dispatcher_send(self.hass, SIGNAL_UPDATED.format(self.entry_id))

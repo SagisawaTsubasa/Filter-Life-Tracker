@@ -3,13 +3,15 @@
 Storage keeps only runtime state (accumulated usage + install date).
 Configuration lives in the Config Entry. See design doc section 10.
 
-Migration (section 10.4): the stored file carries a top-level ``version``.
-On load, if it is older than STORAGE_VERSION, registered migration
-functions are applied in order, then the file is re-saved immediately.
+Schema migrations: the HA ``Store`` wraps the payload with its own version
+metadata. If STORAGE_VERSION is ever raised, pass a ``migrate_func`` to the
+``Store`` constructor — a hand-rolled version check on the inner payload can
+never see HA's version envelope.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -19,16 +21,6 @@ from homeassistant.helpers.storage import Store
 from .const import ENTRY_TYPE_DEVICE, STORAGE_KEY, STORAGE_VERSION
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _migrate_0_to_1(data: dict[str, Any]) -> dict[str, Any]:
-    """Placeholder migration chain entry for future schema versions."""
-    return data
-
-
-STORAGE_MIGRATIONS = {
-    0: _migrate_0_to_1,
-}
 
 
 class FilterLifeStore:
@@ -42,25 +34,15 @@ class FilterLifeStore:
             "total_prefilter_entries": {},
         }
         self._dirty_entries: set[str] = set()
+        self._flush_lock = asyncio.Lock()
 
     async def async_load(self) -> None:
-        """Load and migrate stored data."""
+        """Load stored data."""
         data = await self._store.async_load()
         if not data:
             return
-        version = data.get("version", STORAGE_VERSION)
-        migrated = data
-        while version < STORAGE_VERSION:
-            migrate = STORAGE_MIGRATIONS.get(version)
-            if migrate is None:
-                _LOGGER.warning("No storage migration from version %s; starting fresh", version)
-                return
-            migrated = migrate(migrated)
-            version += 1
-        if version != data.get("version", STORAGE_VERSION):
-            await self._store.async_save(migrated)
-        self.data["device_entries"] = migrated.get("device_entries", {})
-        self.data["total_prefilter_entries"] = migrated.get("total_prefilter_entries", {})
+        self.data["device_entries"] = data.get("device_entries", {})
+        self.data["total_prefilter_entries"] = data.get("total_prefilter_entries", {})
 
     def _section(self, entry_type: str) -> str:
         return "device_entries" if entry_type == ENTRY_TYPE_DEVICE else "total_prefilter_entries"
@@ -81,8 +63,18 @@ class FilterLifeStore:
         self._dirty_entries.add(entry_id)
 
     async def async_flush(self, *_: Any) -> None:
-        """Flush to disk if anything is dirty."""
-        if not self._dirty_entries:
-            return
-        self._dirty_entries.clear()
-        await self._store.async_save(self.data)
+        """Flush to disk if anything is dirty.
+
+        Dirty flags survive a failed save so the next flush retries, and
+        concurrent triggers (timer / reset / unload) are serialized to avoid
+        double writes.
+        """
+        async with self._flush_lock:
+            if not self._dirty_entries:
+                return
+            try:
+                await self._store.async_save(self.data)
+            except Exception:
+                _LOGGER.exception("Failed to persist filter state — will retry on next flush")
+                return
+            self._dirty_entries.clear()

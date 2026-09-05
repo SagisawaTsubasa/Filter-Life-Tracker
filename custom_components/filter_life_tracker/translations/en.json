@@ -31,10 +31,13 @@
           "debounce": "Only applies to count type: the target state must persist this long to count once."
         }
       },
+      "filter_template": {
+        "title": "Filter template",
+        "description": "The template only prefills the defaults on the next pages; every value stays editable."
+      },
       "filter1": {
         "title": "Level 1 filter",
         "data": {
-          "template": "Filter template",
           "rated_time_days": "Rated lifetime (days)",
           "rated_usage": "Rated usage",
           "warn_threshold": "Warning threshold (%)"
@@ -45,7 +48,6 @@
         "description": "When the level 1 filter's usage track is exhausted, level 2 accumulates usage at the cascade factor rate.",
         "data": {
           "enable_level2": "Enable level 2 filter",
-          "template": "Filter template",
           "rated_time_days": "Rated lifetime (days)",
           "rated_usage": "Rated usage",
           "warn_threshold": "Warning threshold (%)",
@@ -63,7 +65,6 @@
       "total_filter": {
         "title": "Pre-filter cartridge",
         "data": {
-          "template": "Filter template",
           "rated_time_days": "Rated lifetime (days)",
           "rated_usage": "Rated usage",
           "warn_threshold": "Warning threshold (%)"
@@ -117,16 +118,28 @@
   },
   "entity": {
     "sensor": {
-      "life": { "name": "Filter {level} life" },
-      "life_time": { "name": "Filter {level} time remaining" },
-      "life_usage": { "name": "Filter {level} usage remaining" }
+      "life": {
+        "name": "Filter {level} life"
+      },
+      "life_time": {
+        "name": "Filter {level} time remaining"
+      },
+      "life_usage": {
+        "name": "Filter {level} usage remaining"
+      }
     },
     "binary_sensor": {
-      "warn": { "name": "Filter {level} warning" },
-      "expired": { "name": "Filter {level} expired" }
+      "warn": {
+        "name": "Filter {level} warning"
+      },
+      "expired": {
+        "name": "Filter {level} expired"
+      }
     },
     "button": {
-      "reset": { "name": "Reset filter {level}" }
+      "reset": {
+        "name": "Reset filter {level}"
+      }
     }
   }
 }
