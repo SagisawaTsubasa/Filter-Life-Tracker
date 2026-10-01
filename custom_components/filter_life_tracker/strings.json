@@ -54,6 +54,10 @@
           "cascade_factor": "Cascade factor"
         }
       },
+      "device_confirm": {
+        "title": "Confirm configuration",
+        "description": "Review the summary below, then submit to create the entry.\n\n{summary}"
+      },
       "total": {
         "title": "Whole-house pre-filter",
         "description": "The pre-filter only counts usage produced after binding; downstream history is not included. All downstream entries must use the same tracking type.",
@@ -118,16 +122,28 @@
   },
   "entity": {
     "sensor": {
-      "life": { "name": "Filter {level} life" },
-      "life_time": { "name": "Filter {level} time remaining" },
-      "life_usage": { "name": "Filter {level} usage remaining" }
+      "life": {
+        "name": "Filter {level} life"
+      },
+      "life_time": {
+        "name": "Filter {level} time remaining"
+      },
+      "life_usage": {
+        "name": "Filter {level} usage remaining"
+      }
     },
     "binary_sensor": {
-      "warn": { "name": "Filter {level} warning" },
-      "expired": { "name": "Filter {level} expired" }
+      "warn": {
+        "name": "Filter {level} warning"
+      },
+      "expired": {
+        "name": "Filter {level} expired"
+      }
     },
     "button": {
-      "reset": { "name": "Reset filter {level}" }
+      "reset": {
+        "name": "Reset filter {level}"
+      }
     }
   }
 }

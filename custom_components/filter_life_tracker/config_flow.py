@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -285,11 +284,46 @@ class FilterLifeConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_TEMPLATE: template,
                     **dict(user_input),
                 }
-            return self._create_device_entry()
+            return await self.async_step_device_confirm()
         schema = _filter_schema(self._data[CONF_SOURCE_TYPE], 2, template).extend(
             {vol.Required(CONF_ENABLE_LEVEL2, default=False): BooleanSelector()}
         )
         return self.async_show_form(step_id="filter2", data_schema=schema)
+
+    def _confirm_summary(self) -> dict[str, str]:
+        """Value-only summary lines for the confirmation page (doc §11.1 item 8)."""
+        d = self._data
+        source_type = d[CONF_SOURCE_TYPE]
+        usage_unit = "×" if source_type == SOURCE_TYPE_COUNT else "h"
+        lines = [f"{d[CONF_SOURCE_ENTITY]} → {d[CONF_TARGET_STATE]} ({source_type})"]
+        debounce = (
+            f" · {d.get(CONF_DEBOUNCE, DEFAULT_DEBOUNCE):g}s"
+            if source_type == SOURCE_TYPE_COUNT
+            else ""
+        )
+        lines.append(f"×{d[CONF_COEFFICIENT]:g}{debounce}")
+        for level_str in sorted(d[CONF_FILTERS], key=int):
+            f = d[CONF_FILTERS][level_str]
+            line = (
+                f"L{level_str} [{f[CONF_TEMPLATE]}]: {f[CONF_RATED_TIME_DAYS]:g}d / "
+                f"{f[CONF_RATED_USAGE]:g} {usage_unit} / {f[CONF_WARN_THRESHOLD]:g}%"
+            )
+            if int(level_str) > 1:
+                line += f" · ×{f.get(CONF_CASCADE_FACTOR, DEFAULT_CASCADE_FACTOR):g}"
+            lines.append(line)
+        return {"summary": "\n".join(lines)}
+
+    async def async_step_device_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Confirmation page (doc §11.1 item 8): summary, then create."""
+        if user_input is not None:
+            return self._create_device_entry()
+        return self.async_show_form(
+            step_id="device_confirm",
+            data_schema=vol.Schema({}),
+            description_placeholders=self._confirm_summary(),
+        )
 
     def _create_device_entry(self) -> ConfigFlowResult:
         """Create the device config entry."""

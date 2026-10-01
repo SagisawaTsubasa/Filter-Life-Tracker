@@ -80,3 +80,23 @@ Keep the correction coefficient at 1.0 initially; after the first filter replace
 ### License
 
 MIT
+
+## 更新日志 / Changelog
+
+### 1.2.0
+- 修复：`FilterRuntime` 初始化引用未定义变量（`entry_id` → `self.entry_id`）——此前任何配置条目建立即崩溃，这是 FLT 无法完成首次配置的直接原因  
+  Fixed: `FilterRuntime.__init__` referenced an undefined variable (`entry_id` → `self.entry_id`) — entry setup crashed on first configuration, the root cause of FLT never being configurable
+- 修复：存储迁移钩子改为覆写 `Store._async_migrate_func`（HA 新版已移除 `migrate_func=` 构造参数，按旧计划实现会直接 TypeError）  
+  Fixed: storage migration hook now overrides `Store._async_migrate_func` (recent HA removed the `migrate_func=` constructor argument)
+- 新增：设备级创建流程末尾的确认页（设计文档 §11.1 第 8 项）：汇总积分源/目标状态/系数/各级滤芯参数后提交  
+  Added: confirmation page at the end of the device-entry flow (design doc §11.1 item 8) summarizing source/target/coefficient/filter stages
+- 新增：单元测试 18 项（设计文档 §14）：duration/count 状态机、级联触发与解除、重启抑制、时钟回拨、去抖取消、总前置聚合、存储 dirty-flag 重试  
+  Added: 18 unit tests (design doc §14): duration/count state machines, cascade trigger/release, restart suppression, clock rollback, debounce cancel, total-prefilter aggregation, storage dirty-flag retry
+- 修复：重启抑制标志在观测到真实离开目标状态后清除（否则吞掉下一个真实周期的计数）；最后一个条目卸载后 store 实例一并释放（否则批量落盘定时器永久失效）；确认页摘要改纯符号单位；迁移钩子对未实现的旧大版本显式拒绝  
+  Fixed: restart-suppression flag cleared after a real exit from the target state; shared store released with its timers on last unload; symbol-only confirm summary; loud failure on unmigrated storage versions  
+- 清理：ruff check 告警清零  
+  Chores: ruff check warnings cleared
+
+### 1.1.0（2026-09-05 审计修复批次，随 V1.0.2 之后提交）
+- 存储单例竞态、重启计数抑制、options 校验等审计修复  
+  September audit fixes: storage singleton race, restart count suppression, options validation

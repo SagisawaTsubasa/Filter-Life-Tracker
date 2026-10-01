@@ -54,6 +54,10 @@
           "cascade_factor": "Cascade factor"
         }
       },
+      "device_confirm": {
+        "title": "Confirm configuration",
+        "description": "Review the summary below, then submit to create the entry.\n\n{summary}"
+      },
       "total": {
         "title": "Whole-house pre-filter",
         "description": "The pre-filter only counts usage produced after binding; downstream history is not included. All downstream entries must use the same tracking type.",

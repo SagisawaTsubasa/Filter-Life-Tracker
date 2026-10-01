@@ -3,10 +3,12 @@
 Storage keeps only runtime state (accumulated usage + install date).
 Configuration lives in the Config Entry. See design doc section 10.
 
-Schema migrations: the HA ``Store`` wraps the payload with its own version
-metadata. If STORAGE_VERSION is ever raised, pass a ``migrate_func`` to the
-``Store`` constructor — a hand-rolled version check on the inner payload can
-never see HA's version envelope.
+Schema migrations: HA's ``Store`` wraps the payload with its own version
+envelope. Recent HA removed the ``migrate_func=`` constructor argument —
+migration is done by subclassing and overriding ``_async_migrate_func``.
+STORAGE_VERSION has always been 1, so the hook is an identity; raise
+STORAGE_VERSION and convert ``old_data`` there when the payload ever
+changes shape.
 """
 
 from __future__ import annotations
@@ -23,12 +25,32 @@ from .const import ENTRY_TYPE_DEVICE, STORAGE_KEY, STORAGE_VERSION
 _LOGGER = logging.getLogger(__name__)
 
 
+class _FilterLifeStore(Store[dict[str, Any]]):
+    """Store with an explicit (identity) migration hook for future versions."""
+
+    async def _async_migrate_func(
+        self, old_major_version: int, old_minor_version: int, old_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """STORAGE_VERSION has always been 1 — nothing to convert yet.
+
+        Guard: a future STORAGE_VERSION bump without updating this hook must
+        fail loudly instead of silently treating old-shaped data as current.
+        """
+        if old_major_version != 1:
+            raise NotImplementedError(
+                f"no migration from filter_life_tracker storage v{old_major_version}"
+            )
+        return old_data
+
+
 class FilterLifeStore:
     """Shared JSON store with batched (10 min) flushing."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the store."""
-        self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        self._store: Store[dict[str, Any]] = _FilterLifeStore(
+            hass, STORAGE_VERSION, STORAGE_KEY
+        )
         self.data: dict[str, Any] = {
             "device_entries": {},
             "total_prefilter_entries": {},

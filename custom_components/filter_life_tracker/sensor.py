@@ -9,7 +9,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_ENTRY_TYPE, DOMAIN, SIGNAL_UPDATED
+from .const import DOMAIN, SIGNAL_UPDATED
 from .engine import FilterRuntime
 
 

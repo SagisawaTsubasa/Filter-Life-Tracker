@@ -43,14 +43,14 @@ from .const import (
     DEFAULT_WARN_THRESHOLD,
     ENTRY_TYPE_DEVICE,
     EVENT_FILTER_RESET,
+    SECONDS_PER_DAY,
+    SECONDS_PER_HOUR,
     SENSOR_REFRESH_INTERVAL,
     SIGNAL_INCREMENT,
     SIGNAL_UPDATED,
     SOURCE_TYPE_COUNT,
     STATE_ACCUMULATED_USAGE,
     STATE_INSTALL_DATE,
-    SECONDS_PER_DAY,
-    SECONDS_PER_HOUR,
 )
 from .storage import FilterLifeStore
 
@@ -87,9 +87,9 @@ class FilterRuntime:
         self.entry_id = entry.entry_id
         self.entry_type: str = entry.data["entry_type"]
 
-        persisted = store.get_entry_state(entry_id, self.entry_type)
+        persisted = store.get_entry_state(self.entry_id, self.entry_type)
         self.filters: dict[int, dict[str, Any]] = {}
-        for level_str, fcfg in entry.data[CONF_FILTERS].items():
+        for level_str in entry.data[CONF_FILTERS]:
             level = int(level_str)
             fsaved = persisted["filters"].get(level_str, {})
             self.filters[level] = {
@@ -231,6 +231,10 @@ class FilterRuntime:
         elif old_state == target and new.state != target:
             # Left target state within debounce window: cancel count.
             self._cancel_debounce()
+            # 观测到一次真实离开：抑制使命已完成，清除标志——否则下一个
+            # 全新周期的上升沿会被误当重启回声吞掉（unavailable 分支不清，
+            # 继续压制 unavailable→target 的设备重联回声）。
+            self._suppress_next_rise = False
 
     @callback
     def _confirm_count(self, _now: datetime) -> None:

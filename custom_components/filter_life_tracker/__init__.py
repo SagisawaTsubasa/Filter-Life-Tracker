@@ -10,7 +10,12 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONFIG_ENTRY_VERSION, CONFIG_ENTRY_MINOR_VERSION, DOMAIN, FLUSH_INTERVAL
+from .const import (
+    CONFIG_ENTRY_MINOR_VERSION,
+    CONFIG_ENTRY_VERSION,
+    DOMAIN,
+    FLUSH_INTERVAL,
+)
 from .engine import FilterRuntime
 from .storage import FilterLifeStore
 
@@ -64,6 +69,9 @@ def _maybe_release_store(hass: HomeAssistant) -> None:
     stop_unsub = domain_data.pop("stop_unsub", None)
     if stop_unsub is not None:
         stop_unsub()
+    # store 实例一并释放：否则下次 _async_get_store 复用旧实例时会跳过
+    # 定时器注册分支，批量落盘与关机强刷永久失效（卸载前已 flush，磁盘状态是新的）。
+    domain_data.pop("store", None)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:

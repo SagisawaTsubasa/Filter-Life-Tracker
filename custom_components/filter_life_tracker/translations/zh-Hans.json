@@ -54,6 +54,10 @@
           "cascade_factor": "级联系数"
         }
       },
+      "device_confirm": {
+        "title": "确认配置",
+        "description": "请核对以下配置，提交即创建条目。\n\n{summary}"
+      },
       "total": {
         "title": "全屋总前置",
         "description": "总前置只统计绑定之后新产生的用量，下游已有历史积分不计入。所有下游设备必须使用相同的积分类型。",
